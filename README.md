@@ -204,3 +204,50 @@ pvesm status
 ![Block backups when disk is not mounted](https://github.com/MikeMilenk/Immich-Backing-Up/blob/d4b58c6443683e14cd7a41732ece316ac8d5f30e/images/3.2%20-%20Block%20unnecessary%20backups.png)
 
 `immich-backup` should show as `active`, and its block in `storage.cfg` should contain `is_mountpoint yes`.
+
+---
+
+## 4. Understand how Immich stores data
+
+Inside the Immich VM, look at the Immich `.env` file.
+The `.env` file holds the settings **Docker Compose uses** to start **Immich**: where the photos are stored, where the database lives, the Immich version, and the database password. The `.env `file is hidden because its name starts with a *dot*, so a plain `ls` won't show it. You can see it with `ls -a`.
+
+![env file location](https://github.com/MikeMilenk/Immich-Backing-Up/blob/59b6565b66708e376c1cb7d5398f4982a857b9f4/images/4.1%20-%20env%20file%20location.png)
+
+In my case, it's in the `immich-app` folder inside my home directory. I created that folder when I set up **Immich** (here's [my guide](https://github.com/MikeMilenk/Immich-deployment)).
+
+Before backing up, I want to know what's stored where, so I open `.env` to find out where Immich keeps its data (`UPLOAD_LOCATION`).
+
+```bash
+cat ~/immich-app/.env
+```
+
+![env file content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/881b3cbb9da3033027d9a6bc01b540502a42be50/images/4.2%20-%20env%20file%20content.png)
+
+| Variable | Meaning |
+|---|---|
+| `UPLOAD_LOCATION` | Where media, thumbnails, profile pictures and database dumps are stored |
+| `DB_DATA_LOCATION` | Live Postgres data (do not copy it by hand, use the dumps) |
+
+> **Never publish your `DB_PASSWORD`.
+
+Check what is on the media disk:
+
+- `Findmnt` shows which disk is mounted in that folder (in my case the media HDD, not the system disk)
+```bash
+findmnt /mnt/immich-storage
+```
+- `du` shows how big each folder is, so I know the backup disk has enough space.
+```bash
+du -sh /mnt/immich-storage/library/*
+```
+- `ls -la` checks that Immich makes daily database dumps. The dumps hold albums, users and settings, so without them the backup would be just photos.
+```bash
+ls -la /mnt/immich-storage/library/backups
+```
+
+![media disk content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/881b3cbb9da3033027d9a6bc01b540502a42be50/images/4.3%20-%20media%20disk%20content.png)
+
+Shows which disk is mounted there, how big each folder is, and whether Immich creates daily database dumps (`immich-db-backup-...sql.gz`). The file name contains the Immich and Postgres versions. Write them down, you need compatible versions to restore.
+
+---
