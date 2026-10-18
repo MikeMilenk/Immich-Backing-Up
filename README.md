@@ -241,7 +241,7 @@ findmnt /mnt/immich-storage
 ```bash
 du -sh /mnt/immich-storage/library/*
 ```
-The `upload` folder is where my original media are stored, and it's the biggest one by far: **631 GB**.
+  The `upload` folder in *library* directory is where my original media are stored, and it's the biggest one by far: **631 GB**.
 
 - `ls -la` checks that Immich makes daily database dumps. The dumps hold albums, users and settings, so without them the backup would be just photos.
 ```bash
@@ -250,6 +250,39 @@ ls -la /mnt/immich-storage/library/backups
 
 ![media disk content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/fc00037a6da891e106d4b193d66915496b99d934/images/4.3%20-%20media%20disk%20content.png)
 
-Shows which disk is mounted there, how big each folder is, and whether Immich creates daily database dumps (`immich-db-backup-...sql.gz`). The file name contains the Immich and Postgres versions. Write them down, you need compatible versions to restore.
+  The file name contains the **Immich** and **Postgres** versions. You need compatible versions to restore.
 
 ---
+
+## 5. Exclude the media disk from the VM backup
+
+By default, Proxmox's backup (`vzdump`) also includes passthrough disks, so it would try to copy my whole media HDD. I don't want that, because I back up the media separately with `rsync`.
+
+**VM → Hardware → Hard Disk (the passthrough disk) → Edit → Advanced → uncheck "Backup" → OK**
+
+![Disable media disk backup](https://github.com/MikeMilenk/Immich-Backing-Up/blob/9b8ece26ccd3708f9c016b13a6219baf3daf6e19/images/5.1%20-%20Disable%20media%20disk%20backup.png)
+
+Keep it unchecked permanently. In the disk line you should see `backup=0`.
+
+![backup=0](https://github.com/MikeMilenk/Immich-Backing-Up/blob/9b8ece26ccd3708f9c016b13a6219baf3daf6e19/images/5.2%20-%20Backup%3D0.png)
+
+---
+
+## 6. Run the backup
+> Repeat this procedure every month.
+
+**6.1 Back up the system**
+
+**Shutdown** the VM and wait until the VM is stopped. This is required because the media disk must not be mounted in the VM and on the host at the same time, which can corrupt the filesystem. It also guarantees a consistent copy.
+
+Connect and mount the backup disk (`mount /mnt/immich-backup`), then:
+
+**VM → Backup → Backup now**
+
+- **Storage:** `immich-backup`
+- **Mode:** `Stop` (the VM is already off, so this is the safest mode)
+- **Compression:** `ZSTD`
+
+![System Backup](https://github.com/MikeMilenk/Immich-Backing-Up/blob/08fab6a66744a6cc65dfb4bb0bb9cfba88e176b3/images/6.1%20-%20Backup%20System%20(SSD).png)
+
+Wait for `TASK OK`. The result is a `.vma.zst` file in `dump/` if you need it.
