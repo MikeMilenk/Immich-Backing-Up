@@ -60,15 +60,106 @@ wipefs -a /dev/sdf
 
 **2.3 Format as ext4**
 
+My Immich runs on an **Ubuntu Linux server**, and `ext4` is the standard filesystem for Linux, so that's what I'm going to use for the backup disk.
+I'll also create it on the **whole disk, without a partition table**. The disk is just for backups and only goes into my Linux server, so there's no point in splitting it up.
+
 ```bash
-mkfs.ext4 /dev/sdX
+mkfs.ext4 /dev/sdf
 ```
 
-My Immich runs on an **Ubuntu Linux server**, and `ext4` is the standard filesystem for Linux, so that's what I used for the backup disk.
-I also created it on the **whole disk, without a partition table**. The disk is just for backups and only goes into my Linux server, so there's no point in splitting it up.
-
-![Formatting disk](https://github.com/MikeMilenk/Immich-Backing-Up/blob/6f15fc9b690d2920560502eb07b0d3647ae90f8d/images/2.2%20-%20Formatting%20disk.png)
+![Formatting disk](https://github.com/MikeMilenk/Immich-Backing-Up/blob/4b8324a0b9d41e86d4f7547b0320ba9502657795/images/2.3%20-%20Formatting%20disk.png)
 
 Save the filesystem UUID from the `mkfs` output, you'll need it in a minute for `fstab`.
 
 > If you plug this drive into Windows or macOS, it will look empty or uninitialized and offer to format it. Don't accept that, or you'll lose your backup!
+
+**2.4 Create the mount point and mount the disk**
+
+A **mount point** is an empty folder on the system disk. The backup disk gets "attached" to it when mounted. I named my mount point **immich-backup**.
+
+```bash
+mkdir -p /mnt/immich-backup
+```
+
+Now let's attach my `sdf` disk to that folder:
+
+```bash
+mount /dev/sdf /mnt/immich-backup
+```
+
+It never hurts to verify that it worked:
+
+```bash
+df -h /mnt/immich-backup
+```
+
+![Creating backup directory](https://github.com/MikeMilenk/Immich-Backing-Up/blob/4b8324a0b9d41e86d4f7547b0320ba9502657795/images/2.4%20-%20Creating%20backup%20directory.png)
+
+The `Filesystem` column should show the mounted disk (`/dev/sdf`), and the size should match your disk.
+
+**2.5 Adding disk for automount (`fstab`)**
+
+This is where we need the **UUID** from the `mkfs` output. If you forgot it or didn't save it, you can find it with this command:
+
+```bash
+blkid /dev/sdX
+```
+...where "X" is the letter of your disk, in my case `sdf`.
+![Find UUID](https://github.com/MikeMilenk/Immich-Backing-Up/blob/da13ba05d262d8a69a7ec41121e3b5837cf16ade/images/2.5.1%20-%20UUID.png)
+
+Now open the `fstab` file.
+> **fstab (File Systems TABle)** is a file where Linux keeps the list of disks and the folders they should be mounted to when the server boots.
+
+```bash
+nano /etc/fstab
+```
+
+Add one line at the end (no quotes and no brackets around the UUID):
+
+```
+UUID=<YOUR-UUID>  /mnt/immich-backup  ext4  defaults,nofail  0  2
+```
+
+![Adding disk for automount](https://github.com/MikeMilenk/Immich-Backing-Up/blob/726a780f92146e7937301bc11abb7bd65e8551f8/images/2.5.2%20-%20Adding%20disk%20for%20automount.png)
+
+In `fstab` I use the **UUID** instead of `/dev/sdf`. If the letter changes after a reboot, the server could mount the wrong disk into the backup folder. The **UUID** always points to my backup disk.
+
+What each part means:
+- `defaults`: standard mount options.
+- `nofail`: the server still boots even if the disk is unplugged.
+- Optional: you can use `defaults,noauto,nofail` instead. That way a cold disk is never mounted at boot, but you can still mount it by hand with `mount /mnt/immich-backup`.
+
+Let's make sure the line is correct. First unmount the disk:
+
+```bash
+umount /mnt/immich-backup
+```
+
+Then reload the config and mount everything from `fstab`:
+
+```bash
+systemctl daemon-reload
+mount -a
+```
+
+If both commands print nothing, that's good. No output means no errors.
+
+![Verifying fstab edits](https://github.com/MikeMilenk/Immich-Backing-Up/blob/726a780f92146e7937301bc11abb7bd65e8551f8/images/2.5.3%20-%20Verifying%20fstab%20edits.png)
+
+Check that the disk is mounted:
+
+```bash
+df -h /mnt/immich-backup
+```
+
+It should show your disk and its size. The unmount at the start is important: if the disk is already mounted, `mount -a` skips it and tests nothing.
+
+**2.8 Optional: reduce the reserved space**
+
+`ext4` format reserves 5% of the disk for root by default. That's useless on a backup-only disk, so I'm going to lower it to 1%.
+
+```bash
+tune2fs -m 1 /dev/sdX
+```
+
+![Decreasing reserve](https://github.com/MikeMilenk/Immich-Backing-Up/blob/106810e690d774225266c52cad6a282efc352a08/images/2.6%20-%20Decreasing%20reserve%20to%201%25.png)
