@@ -81,7 +81,7 @@ A **mount point** is an empty folder on the system disk. The backup disk gets "a
 mkdir -p /mnt/immich-backup
 ```
 
-Now let's attach my `sdf` disk to that folder:
+Now let's attach given `sdf` disk to that folder:
 
 ```bash
 mount /dev/sdf /mnt/immich-backup
@@ -163,3 +163,44 @@ tune2fs -m 1 /dev/sdX
 ```
 
 ![Decreasing reserve](https://github.com/MikeMilenk/Immich-Backing-Up/blob/106810e690d774225266c52cad6a282efc352a08/images/2.6%20-%20Decreasing%20reserve%20to%201%25.png)
+
+---
+
+## 3. Add the disk to Proxmox
+
+**3.1 Create the storage**
+
+Open Immich Web Interface and go to: **Datacenter → Storage → Add → Directory**
+
+![Adding Backup Directory: step 1](https://github.com/MikeMilenk/Immich-Backing-Up/blob/9811f9085e49baba40825ed41907fb925389d130/images/3.1.1%20-%20Adding%20Backup%20Directory.png)
+
+- **ID:** `immich-backup`
+- **Directory:** `/mnt/immich-backup`
+- **Content:** `Backup` only
+
+![Adding Backup Directory: step 2](https://github.com/MikeMilenk/Immich-Backing-Up/blob/9811f9085e49baba40825ed41907fb925389d130/images/3.1.2%20-%20Adding%20Backup%20Directory.png)
+
+Click **Add**, and the new storage should now show up in the list.
+
+![New Added Storage](https://github.com/MikeMilenk/Immich-Backing-Up/blob/78ff6117f8fd9c135d2ef759b64966e1ac80115a/images/3.1.3%20-%20New%20Added%20Storage.png)
+
+**3.2 Block backups when the disk isn't mounted, and verify**
+
+If the backup disk is unplugged, `/mnt/immich-backup` is just an empty folder on the system disk. Without extra restriction, Proxmox would silently write backups there and could fill up the system disk. Next command prevents that: if the backup disk isn't mounted, the backup job fails instead.
+
+```bash
+pvesm set immich-backup --is_mountpoint yes
+```
+
+Now let's check that everything is in place:
+
+```bash
+cat /etc/pve/storage.cfg
+```
+```bash
+pvesm status
+```
+
+![Block backups when disk is not mounted](https://github.com/MikeMilenk/Immich-Backing-Up/blob/d4b58c6443683e14cd7a41732ece316ac8d5f30e/images/3.2%20-%20Block%20unnecessary%20backups.png)
+
+`immich-backup` should show as `active`, and its block in `storage.cfg` should contain `is_mountpoint yes`.
