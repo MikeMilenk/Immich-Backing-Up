@@ -222,7 +222,7 @@ Before backing up, I want to know what's stored where, so I open `.env` to find 
 cat ~/immich-app/.env
 ```
 
-![env file content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/881b3cbb9da3033027d9a6bc01b540502a42be50/images/4.2%20-%20env%20file%20content.png)
+![env file content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/fc00037a6da891e106d4b193d66915496b99d934/images/4.2%20-%20env%20file%20content.png)
 
 | Variable | Meaning |
 |---|---|
@@ -246,7 +246,7 @@ du -sh /mnt/immich-storage/library/*
 ls -la /mnt/immich-storage/library/backups
 ```
 
-![media disk content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/881b3cbb9da3033027d9a6bc01b540502a42be50/images/4.3%20-%20media%20disk%20content.png)
+![media disk content](https://github.com/MikeMilenk/Immich-Backing-Up/blob/fc00037a6da891e106d4b193d66915496b99d934/images/4.3%20-%20media%20disk%20content.png)
 
 Shows which disk is mounted there, how big each folder is, and whether Immich creates daily database dumps (`immich-db-backup-...sql.gz`). The file name contains the Immich and Postgres versions. Write them down, you need compatible versions to restore.
 
