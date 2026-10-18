@@ -241,6 +241,8 @@ findmnt /mnt/immich-storage
 ```bash
 du -sh /mnt/immich-storage/library/*
 ```
+The `upload` folder is where my original media are stored, and it's the biggest one by far: **631 GB**.
+
 - `ls -la` checks that Immich makes daily database dumps. The dumps hold albums, users and settings, so without them the backup would be just photos.
 ```bash
 ls -la /mnt/immich-storage/library/backups
