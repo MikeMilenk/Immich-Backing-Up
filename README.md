@@ -5,13 +5,25 @@ This guide covers how to back up Immich on Proxmox, including the VM system disk
 
 1. [Overview](#1-overview)
 2. [Prepare the external backup disk](#2-prepare-the-external-backup-disk)
+    - [2.1 Find the disk](#21-find-the-disk)
+    - [2.2 Wipe old signatures](#22-wipe-old-signatures)
+    - [2.3 Format as ext4](#23-format-as-ext4)
+    - [2.4 Create the mount point and mount the disk](#24-create-the-mount-point-and-mount-the-disk)
+    - [2.5 Adding disk for automount (`fstab`)](#25-adding-disk-for-automount-fstab)
+    - [2.6 Optional: reduce the reserved space](#26-optional-reduce-the-reserved-space)
 3. [Add the disk to Proxmox](#3-add-the-disk-to-proxmox)
+    - [3.1 Create the storage](#31-create-the-storage)
+    - [3.2 Block backups when the disk isn't mounted, and verify](#32-block-backups-when-the-disk-isnt-mounted-and-verify)
 4. [Understand how Immich stores data](#4-understand-how-immich-stores-data)
 5. [Exclude the media disk from the VM backup](#5-exclude-the-media-disk-from-the-vm-backup)
 6. [Run the backup](#6-run-the-backup)
+    - [6.1 Back up the system](#61-back-up-the-system)
+    - [6.2 Mount the media disk on the host (read-only)](#62-mount-the-media-disk-on-the-host-read-only)
+    - [6.3 Copy the media](#63-copy-the-media)
+    - [6.4 Verify copying](#64-verify-copying)
+    - [6.5 Unmount and finish](#65-unmount-and-finish)
 7. [What ends up on the backup disk](#7-what-ends-up-on-the-backup-disk)
 8. [Restore](#8-restore)
-9. [Notes and limitations](#9-notes-and-limitations)
 
 ---
 
@@ -19,7 +31,7 @@ This guide covers how to back up Immich on Proxmox, including the VM system disk
 
 **How my Immich is set up**
 
-My Immich is split into two parts:
+My Immich is split into 2 parts:
 1) **SSD:** the OS and all the system settings (Docker, configs, the database). I keep it here so the system runs fast.
 2) **HDD:** all the media. It's a big, roomy drive, which is what I want for stuff that keeps growing.
 
@@ -36,7 +48,7 @@ Why 2 ways? The media HDD is passed through to the VM as a whole disk, so Proxmo
 
 ## 2. Prepare the external backup disk
 
-**2.1 Find the disk**
+### 2.1 Find the disk
 
 ```bash
 lsblk -o NAME,SIZE,MODEL,FSTYPE,MOUNTPOINT
@@ -46,7 +58,7 @@ This command lists all disks with size, model, filesystem and mount point. Ident
 
 ![List disks](https://github.com/MikeMilenk/Immich-Backing-Up/blob/6f15fc9b690d2920560502eb07b0d3647ae90f8d/images/2.1%20-%20Checking%20Disks.png)
 
-**2.2 Wipe old signatures**
+### 2.2 Wipe old signatures
 
 > **Careful:** `wipefs` and `mkfs` erase the disk. Always check the disk name with `lsblk` first, so you don't wipe the wrong one.
 
@@ -58,7 +70,7 @@ I wiped the old filesystem and partition table, so I could set the disk up from 
 wipefs -a /dev/sdf
 ```
 
-**2.3 Format as ext4**
+### 2.3 Format as ext4
 
 My Immich runs on an **Ubuntu Linux server**, and `ext4` is the standard filesystem for Linux, so that's what I'm going to use for the backup disk.
 I'll also create it on the **whole disk, without a partition table**. The disk is just for backups and only goes into my Linux server, so there's no point in splitting it up.
@@ -73,7 +85,7 @@ Save the filesystem UUID from the `mkfs` output, you'll need it in a minute for 
 
 > If you plug this drive into Windows or macOS, it will look empty or uninitialized and offer to format it. Don't accept that, or you'll lose your backup!
 
-**2.4 Create the mount point and mount the disk**
+ ### 2.4 Create the mount point and mount the disk
 
 A **mount point** is an empty folder on the system disk. The backup disk gets "attached" to it when mounted. I named my mount point **immich-backup**.
 
@@ -97,7 +109,7 @@ df -h /mnt/immich-backup
 
 The `Filesystem` column should show the mounted disk (`/dev/sdf`), and the size should match your disk.
 
-**2.5 Adding disk for automount (`fstab`)**
+### 2.5 Adding disk for automount (`fstab`)
 
 This is where we need the **UUID** from the `mkfs` output. If you forgot it or didn't save it, you can find it with this command:
 
@@ -154,7 +166,7 @@ df -h /mnt/immich-backup
 
 It should show your disk and its size. The unmount at the start is important: if the disk is already mounted, `mount -a` skips it and tests nothing.
 
-**2.8 Optional: reduce the reserved space**
+### 2.8 Optional: reduce the reserved space
 
 `ext4` format reserves 5% of the disk for root by default. That's useless on a backup-only disk, so I'm going to lower it to 1%.
 
@@ -168,7 +180,7 @@ tune2fs -m 1 /dev/sdX
 
 ## 3. Add the disk to Proxmox
 
-**3.1 Create the storage**
+### 3.1 Create the storage
 
 Open Immich Web Interface and go to: **Datacenter → Storage → Add → Directory**
 
@@ -184,7 +196,7 @@ Click **Add**, and the new storage should now show up in the list.
 
 ![New Added Storage](https://github.com/MikeMilenk/Immich-Backing-Up/blob/78ff6117f8fd9c135d2ef759b64966e1ac80115a/images/3.1.3%20-%20New%20Added%20Storage.png)
 
-**3.2 Block backups when the disk isn't mounted, and verify**
+### 3.2 Block backups when the disk isn't mounted, and verify
 
 If the backup disk is unplugged, `/mnt/immich-backup` is just an empty folder on the system disk. Without extra restriction, Proxmox would silently write backups there and could fill up the system disk. Next command prevents that: if the backup disk isn't mounted, the backup job fails instead.
 
@@ -271,7 +283,7 @@ Keep it unchecked permanently. In the disk line you should see `backup=0`.
 ## 6. Run the backup
 > Repeat this procedure every month.
 
-**6.1 Back up the system**
+### 6.1 Back up the system
 
 **Shutdown** the VM and wait until the VM is stopped. This is required because the media disk must not be mounted in the VM and on the host at the same time, which can corrupt the filesystem. It also guarantees a consistent copy.
 
@@ -287,7 +299,7 @@ Connect and mount the backup disk (`mount /mnt/immich-backup`), then:
 
 Wait for `TASK OK`. The result is a `.vma.zst` file in `dump/` if you need it.
 
-**6.3 Mount the media disk on the host (read-only)**
+### 6.3 Mount the media disk on the host (read-only)
 
 First, you need to know which disk to mount. For that you need its model. Run `lsblk` with the model column:
 
@@ -328,7 +340,7 @@ df -h /mnt/immich-hdd /mnt/immich-backup
 
 > **Don't** add this disk to `fstab`: it belongs to the VM, and the host should only mount it by hand while the VM is off. Check that the backup disk has enough free space.
 
-**6.4 Copy the media**
+### 6.4 Copy the media
 
 ```bash
 rsync -a --info=progress2 /mnt/immich-hdd/ /mnt/immich-backup/media/
@@ -342,11 +354,13 @@ rsync -a --info=progress2 /mnt/immich-hdd/ /mnt/immich-backup/media/
 | `/mnt/immich-hdd/` | Source. The trailing `/` means "the contents of this folder" |
 | `/mnt/immich-backup/media/` | Destination (created automatically) |
 
+![Backing up Immich media](https://github.com/MikeMilenk/Immich-Backing-Up/blob/d5eefd8f1b9cb776c400fdeddc3b29ee3b47afe7/images/6.5.1%20-%20Backing%20up%20Immich%20media.png)
+
 A few points:
 - Keep the shell tab open until it finishes. If it is interrupted, run the same command again: it continues where it stopped.
 - The percentage and remaining time are unreliable, because `rsync` discovers files while copying. Copying my ~750 GB of media took about 6h, even though `rsync` first estimated only about 10 minutes. To see the progress, check `df -h /mnt/immich-backup` in another terminal instead.
 
-**6.5 Verify copying**
+### 6.5 Verify copying
 
 This checks that the backup is complete without copying anything:
 
@@ -359,3 +373,48 @@ rsync -an --itemize-changes /mnt/immich-hdd/ /mnt/immich-backup/media/
 echo $?
 ```
 Empty output and exit code `0` mean the copy is complete. For a stricter check, add `-c` to compare checksums (it reads all data and takes hours).
+
+![Finished backup](https://github.com/MikeMilenk/Immich-Backing-Up/blob/d5eefd8f1b9cb776c400fdeddc3b29ee3b47afe7/images/6.5.2%20-%20Finished%20backup.png)
+
+The backup disk (`sdf`) shows about 10 GB more because it also holds the system backup from Proxmox (the `dump` folder).
+
+**6.6 Unmount and finish**
+
+Unmounting makes sure everything is written to the disk and nothing is still in use, so it's safe to unplug. It also hands the media disk back to the VM: it must not stay mounted on the host when the VM starts!
+
+```bash
+umount /mnt/immich-hdd
+```
+```bash
+umount /mnt/immich-backup
+```
+```bash
+df -h | grep immich
+```
+
+![Unmounting disks](https://github.com/MikeMilenk/Immich-Backing-Up/blob/8eadbffa7de5d74164f48afc229da8c046fe8c08/images/6.6%20-%20Unmounting%20disks.png)
+
+When `df` prints nothing, both disks are unmounted. Unplug the backup disk and **start the VM**. If you get `target is busy`, run `cd /` and try again.
+
+---
+
+## 7. What ends up on the backup disk
+
+```
+/mnt/immich-backup
+├── dump/          # Proxmox VM backup (.vma.zst), restorable only on Proxmox
+├── media/         # exact copy of the media disk
+│   └── library/
+│       ├── upload/          # original photos and videos
+│       ├── thumbs/
+│       ├── encoded-video/
+│       ├── profile/
+│       └── backups/         # Immich daily database dumps
+└── lost+found/    # created automatically by ext4, leave it alone
+```
+
+---
+
+## 8. Restore
+
+> **Note:** restore steps haven't been tested yet. Guide is in progress...
