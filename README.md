@@ -22,7 +22,7 @@ This guide covers how to back up Immich on Proxmox, including the VM system disk
     - [6.3 Copy the media](#63-copy-the-media)
     - [6.4 Verify copying](#64-verify-copying)
     - [6.5 Unmount and finish](#65-unmount-and-finish)
-7. [What ends up on the backup disk](#7-what-ends-up-on-the-backup-disk)
+7. [Backup disk structure](#7-backup-disk-structure)
 8. [Restore](#8-restore)
 
 ---
@@ -299,7 +299,7 @@ Connect and mount the backup disk (`mount /mnt/immich-backup`), then:
 
 Wait for `TASK OK`. The result is a `.vma.zst` file in `dump/` if you need it.
 
-### 6.3 Mount the media disk on the host (read-only)
+### 6.2 Mount the media disk on the host (read-only)
 
 First, you need to know which disk to mount. For that you need its model. Run `lsblk` with the model column:
 
@@ -340,7 +340,7 @@ df -h /mnt/immich-hdd /mnt/immich-backup
 
 > **Don't** add this disk to `fstab`: it belongs to the VM, and the host should only mount it by hand while the VM is off. Check that the backup disk has enough free space.
 
-### 6.4 Copy the media
+### 6.3 Copy the media
 
 ```bash
 rsync -a --info=progress2 /mnt/immich-hdd/ /mnt/immich-backup/media/
@@ -354,13 +354,13 @@ rsync -a --info=progress2 /mnt/immich-hdd/ /mnt/immich-backup/media/
 | `/mnt/immich-hdd/` | Source. The trailing `/` means "the contents of this folder" |
 | `/mnt/immich-backup/media/` | Destination (created automatically) |
 
-![Backing up Immich media](https://github.com/MikeMilenk/Immich-Backing-Up/blob/d5eefd8f1b9cb776c400fdeddc3b29ee3b47afe7/images/6.5.1%20-%20Backing%20up%20Immich%20media.png)
+![Backing up Immich media](https://github.com/MikeMilenk/Immich-Backing-Up/blob/697af651b4f396ac6d25e9628a818b91c7cbd841/images/6.3%20-%20Backing%20up%20Immich%20media.png)
 
 A few points:
 - Keep the shell tab open until it finishes. If it is interrupted, run the same command again: it continues where it stopped.
 - The percentage and remaining time are unreliable, because `rsync` discovers files while copying. Copying my ~750 GB of media took about 6h, even though `rsync` first estimated only about 10 minutes. To see the progress, check `df -h /mnt/immich-backup` in another terminal instead.
 
-### 6.5 Verify copying
+### 6.4 Verify copying
 
 This checks that the backup is complete without copying anything:
 
@@ -374,11 +374,11 @@ echo $?
 ```
 Empty output and exit code `0` mean the copy is complete. For a stricter check, add `-c` to compare checksums (it reads all data and takes hours).
 
-![Finished backup](https://github.com/MikeMilenk/Immich-Backing-Up/blob/d5eefd8f1b9cb776c400fdeddc3b29ee3b47afe7/images/6.5.2%20-%20Finished%20backup.png)
+![Finished backup](https://github.com/MikeMilenk/Immich-Backing-Up/blob/697af651b4f396ac6d25e9628a818b91c7cbd841/images/6.4%20-%20Finished%20backup.png)
 
 The backup disk (`sdf`) shows about 10 GB more because it also holds the system backup from Proxmox (the `dump` folder).
 
-**6.6 Unmount and finish**
+### 6.5 Unmount and finish
 
 Unmounting makes sure everything is written to the disk and nothing is still in use, so it's safe to unplug. It also hands the media disk back to the VM: it must not stay mounted on the host when the VM starts!
 
@@ -398,7 +398,7 @@ When `df` prints nothing, both disks are unmounted. Unplug the backup disk and *
 
 ---
 
-## 7. What ends up on the backup disk
+## 7. Backup disk structure
 
 ```
 /mnt/immich-backup
