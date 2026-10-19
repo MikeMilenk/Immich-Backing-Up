@@ -402,7 +402,7 @@ When `df` prints nothing, both disks are unmounted. Unplug the backup disk and *
 
 ```
 /mnt/immich-backup
-├── dump/          # # system backup of the Immich VM (Ubuntu, Docker, Immich, configs, database). Restorable only on Proxmox
+├── dump/          # system backup of the Immich VM (Ubuntu, Docker, Immich, configs, database). Restorable only on Proxmox
 ├── media/         # exact copy of the media disk
 │   └── library/
 │       ├── upload/          # original photos and videos
