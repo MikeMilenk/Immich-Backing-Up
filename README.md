@@ -166,7 +166,7 @@ df -h /mnt/immich-backup
 
 It should show your disk and its size. The unmount at the start is important: if the disk is already mounted, `mount -a` skips it and tests nothing.
 
-### 2.8 Optional: reduce the reserved space
+### 2.6 Optional: reduce the reserved space
 
 `ext4` format reserves 5% of the disk for root by default. That's useless on a backup-only disk, so I'm going to lower it to 1%.
 
