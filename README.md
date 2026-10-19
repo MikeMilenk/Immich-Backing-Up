@@ -27,7 +27,7 @@ Here I show how to back up both of these separate disks together onto one extern
 
 | What | Where it is | How I back it up |
 |---|---|---|
-| The system (OS, Docker, configs, database) | SSD | Proxmox's built-in backup (`vzdump`) |
+| The system (OS, Docker, configs, database) | SSD | `vzdump` Proxmox's built-in backup |
 | The media (photos, videos, thumbnails, database dumps) | HDD | `rsync` |
 
 Why 2 ways? The media HDD is passed through to the VM as a whole disk, so Proxmox's backup button can't handle it nicely. It's easier to copy it separately.
@@ -114,7 +114,7 @@ Now open the `fstab` file.
 nano /etc/fstab
 ```
 
-Add one line at the end (no quotes and no brackets around the UUID):
+Add one line at the end (no quotes and no brackets around the **UUID**):
 
 ```
 UUID=<YOUR-UUID>  /mnt/immich-backup  ext4  defaults,nofail  0  2
@@ -286,3 +286,76 @@ Connect and mount the backup disk (`mount /mnt/immich-backup`), then:
 ![System Backup](https://github.com/MikeMilenk/Immich-Backing-Up/blob/08fab6a66744a6cc65dfb4bb0bb9cfba88e176b3/images/6.1%20-%20Backup%20System%20(SSD).png)
 
 Wait for `TASK OK`. The result is a `.vma.zst` file in `dump/` if you need it.
+
+**6.3 Mount the media disk on the host (read-only)**
+
+First, you need to know which disk to mount. For that you need its model. Run `lsblk` with the model column:
+
+```bash
+lsblk -o NAME,SIZE,MODEL
+```
+
+Now let's get the permanent name of that disk. Find your media disk by its size and note the model. Device letters like `sdа` can change, but the name in `/dev/disk/by-id` always points to the same disk. Mine is 7.3T and the model is `WD8002FZWX`:
+
+```bash
+ls /dev/disk/by-id | grep <DISK-MODEL>
+```
+So in my case it would be:
+```bash
+ls /dev/disk/by-id | grep WD8002
+```
+
+![Connecting HDD to host Proxmox step 1](https://github.com/MikeMilenk/Immich-Backing-Up/blob/cf232ba41283b6698047816c288682ac4434df60/images/6.2.1%20-%20Connecting%20HDD%20to%20host%20Proxmox.png)
+
+You'll see two entries. The one ending in `-part1` is the partition with the photos, and that's the one we mount. Enter your *<DISK-ID>* (no quotes and no brackets around the **DISK-ID**).
+
+- Create an empty folder where we'll attach the media disk:
+```bash
+mkdir -p /mnt/immich-hdd
+```
+
+- Attach the media disk to that folder. `ro` means read-only, so nothing on the disk can be changed by accident.
+```bash
+mount -o ro /dev/disk/by-id/<DISK-ID>-part1 /mnt/immich-hdd
+```
+
+- Check that both disks are mounted and that the backup disk has enough free space.
+```bash
+df -h /mnt/immich-hdd /mnt/immich-backup
+```
+
+![Connecting HDD to host Proxmox step 2](https://github.com/MikeMilenk/Immich-Backing-Up/blob/cf232ba41283b6698047816c288682ac4434df60/images/6.2.2%20-%20Connecting%20HDD%20to%20host%20Proxmox.png)
+
+> **Don't** add this disk to `fstab`: it belongs to the VM, and the host should only mount it by hand while the VM is off. Check that the backup disk has enough free space.
+
+**6.4 Copy the media**
+
+```bash
+rsync -a --info=progress2 /mnt/immich-hdd/ /mnt/immich-backup/media/
+```
+
+| Part | Meaning |
+|---|---|
+| `rsync` | Copies only files that are new or changed |
+| `-a` | Archive mode: keeps folder structure, timestamps and permissions |
+| `--info=progress2` | Shows one overall progress line |
+| `/mnt/immich-hdd/` | Source. The trailing `/` means "the contents of this folder" |
+| `/mnt/immich-backup/media/` | Destination (created automatically) |
+
+A few points:
+- Keep the shell tab open until it finishes. If it is interrupted, run the same command again: it continues where it stopped.
+- The percentage and remaining time are unreliable, because `rsync` discovers files while copying. Copying my ~750 GB of media took about 6h, even though `rsync` first estimated only about 10 minutes. To see the progress, check `df -h /mnt/immich-backup` in another terminal instead.
+
+**6.5 Verify copying**
+
+This checks that the backup is complete without copying anything:
+
+```bash
+rsync -an --itemize-changes /mnt/immich-hdd/ /mnt/immich-backup/media/
+```
+`-n` is a dry run. It only lists the files that differ between the media disk and the backup. If nothing is listed, the backup has everything.
+
+```bash
+echo $?
+```
+Empty output and exit code `0` mean the copy is complete. For a stricter check, add `-c` to compare checksums (it reads all data and takes hours).
